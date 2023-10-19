@@ -1,0 +1,55 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <openssl/des.h>
+
+void generate_random_iv(unsigned char *iv, int block_size) {
+    RAND_bytes(iv, block_size);
+}
+
+void pad(unsigned char *data, int block_size) {
+    int padding_length = block_size - (strlen(data) % block_size);
+    memset(data + strlen(data), padding_length, padding_length);
+}
+
+void cbc_encrypt(unsigned char *plaintext, unsigned char *key, unsigned char *iv, unsigned char *ciphertext) {
+    DES_cblock des_key1, des_key2, des_key3;
+    DES_key_schedule ks1, ks2, ks3;
+    DES_set_key((DES_cblock *)key, &ks1);
+    DES_set_key((DES_cblock *)(key + 8), &ks2);
+    DES_set_key((DES_cblock *)(key + 16), &ks3);
+
+    DES_cblock iv_temp;
+    memcpy(iv_temp, iv, 8);
+
+    int length = strlen((char *)plaintext);
+    pad(plaintext, 8);
+
+    for (int i = 0; i < length; i += 8) {
+        DES_ecb3_encrypt((DES_cblock *)(plaintext + i), (DES_cblock *)(ciphertext + i), &ks1, &ks2, &ks3, DES_ENCRYPT);
+        for (int j = 0; j < 8; ++j) {
+            ciphertext[i + j] ^= iv_temp[j];
+        }
+        memcpy(iv_temp, ciphertext + i, 8);
+    }
+}
+
+int main() {
+    unsigned char key[24];  // 3DES key
+    unsigned char iv[8];    // Initialization Vector
+    unsigned char plaintext[] = "This is a secret message.";
+    unsigned char ciphertext[256];  // Ensure it's large enough to hold the encrypted message
+
+    generate_random_iv(iv, 8);  // Generate random IV
+    RAND_bytes(key, sizeof(key)); // Generate random 3DES key
+
+    cbc_encrypt(plaintext, key, iv, ciphertext);
+    
+    printf("Ciphertext: ");
+    for (int i = 0; i < strlen((char *)ciphertext); ++i) {
+        printf("%02x", ciphertext[i]);
+    }
+    printf("\n");
+
+    return 0;
+}
